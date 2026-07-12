@@ -1,0 +1,298 @@
+Prompt
+
+Você é um desenvolvedor especialista em ESP8266, C++, Arduino IDE, ESPAsyncWebServer, ESP8266WebServer, LittleFS, JSON, REST API, OTA, segurança e sistemas IoT.
+
+Desenvolva um projeto COMPLETO para ESP8266 (NodeMCU ou ESP-12F) destinado ao monitoramento de temperatura utilizando sensor DS18B20 e acionamento de relé.
+
+O projeto deve ser organizado em vários arquivos (.ino, .h e .cpp), totalmente comentado e profissional.
+
+Objetivos
+
+Criar um firmware profissional para monitoramento remoto.
+
+Hardware:
+
+ESP8266
+Display Oled I2c 0.96 128*64 SSD1315
+Sensor DS18B20
+Relé
+LED de Status
+
+Configuração dos pinos:
+Deixar uma seção para configuração no codigo
+==================================================
+configuração pinos
+=================================================
+
+
+Configuração WiFi:
+
+O equipamento deve possuir dois modos.
+
+1) Modo AP
+
+Caso não exista configuração salva.
+
+ou
+
+Caso o botão RESET seja pressionado por 10 segundos.
+
+Criar uma rede:
+
+MFMANUTEC-XXXXXXXX
+
+onde XXXXXXXX são os últimos caracteres do chipID.
+
+Senha:
+12345678
+IP:
+192.168.4.1
+
+Após a conexão abrir
+
+Página Web de Configuração
+
+Layout moderno.
+
+Responsivo.
+
+Bootstrap.
+
+Cores:
+
+Azul
+
+Cinza
+
+Branco
+
+Logo no topo:
+
+MFMANUTEC
+
+Informações do dispositivo:
+
+MAC Address
+
+IP
+
+Firmware
+
+Chip ID
+
+Campos para configuração
+
+Buscar rede automaticamente SSID
+
+
+Salvar
+
+Reiniciar
+
+Restaurar padrão
+
+
+
+Comunição com api 
+
+Servidor: http://www.mfmanutec.com.br/api/iot/receive.php
+
+Mapa de modos:
+- 1 = SYNC (sincronizacao)
+- 2 = DATA (telemetria)
+
+
+
+
+A cada 30 segundos enviar:
+
+{
+  "modo": 1,
+  "chip_id": "",
+  "assinatura": "SHA256(CHIP_ID + 'MFMANUTEC@2026#IoT!Secure$Key')",
+  "data": {
+    "mac": "",
+    "firmware": "",
+    "codigo": ""
+  }
+}
+
+
+Lista de codigo
+
+            0 => ['description' => 'Operação normal', 'recommended_action' => 'Nenhuma'],
+            1 => ['description' => 'Falha ao detectar o sensor DS18B20', 'recommended_action' => 'Verificar conexão e alimentação do sensor'],
+            2 => ['description' => 'Temperatura inválida', 'recommended_action' => 'Verificar cabo e sensor'],
+            3 => ['description' => 'Erro de leitura do sensor', 'recommended_action' => 'Repetir leitura'],
+            4 => ['description' => 'Temperatura fora da faixa permitida', 'recommended_action' => 'Verificar sensor ou processo'],
+            5 => ['description' => 'Relé não respondeu ao comando', 'recommended_action' => 'Verificar circuito do relé'],
+            6 => ['description' => 'GPIO configurada inválida', 'recommended_action' => 'Revisar configuração'],
+            7 => ['description' => 'Configuração não encontrada', 'recommended_action' => 'Restaurar ou reconfigurar o dispositivo'],
+            8 => ['description' => 'Erro ao salvar configurações', 'recommended_action' => 'Verificar LittleFS'],
+            9 => ['description' => 'Erro ao ler configurações', 'recommended_action' => 'Restaurar configurações padrão'],
+            10 => ['description' => 'Wi-Fi desconectado', 'recommended_action' => 'Reconectar automaticamente'],
+            11 => ['description' => 'Falha na autenticação Wi-Fi', 'recommended_action' => 'Verificar SSID e senha'],
+            12 => ['description' => 'Servidor indisponível', 'recommended_action' => 'Tentar novamente no próximo ciclo'],
+            13 => ['description' => 'Timeout HTTP', 'recommended_action' => 'Repetir envio'],
+            14 => ['description' => 'Assinatura inválida', 'recommended_action' => 'Verificar assinatura'],
+            15 => ['description' => 'Chip ID não cadastrado', 'recommended_action' => 'Verificar cadastro no servidor'],
+            16 => ['description' => 'Erro ao montar LittleFS', 'recommended_action' => 'Regravar firmware'],
+            17 => ['description' => 'Heap baixa', 'recommended_action' => 'Reiniciar dispositivo'],
+            18 => ['description' => 'Watchdog acionado', 'recommended_action' => 'Registrar evento'],
+            19 => ['description' => 'Reinicialização inesperada', 'recommended_action' => 'Registrar motivo'],
+            20 => ['description' => 'Erro OTA', 'recommended_action' => 'Repetir atualização'],
+            21 => ['description' => 'Firmware incompatível', 'recommended_action' => 'Atualizar firmware'],
+            22 => ['description' => 'Tensão baixa', 'recommended_action' => 'Verificar fonte'],
+            23 => ['description' => 'Tensão alta', 'recommended_action' => 'Verificar fonte'],
+            24 => ['description' => 'Erro interno', 'recommended_action' => 'Reiniciar dispositivo'],
+            25 => ['description' => 'JSON inválido', 'recommended_action' => 'Registrar evento'],
+            26 => ['description' => 'Erro ao enviar JSON', 'recommended_action' => 'Repetir envio'],
+            27 => ['description' => 'Resposta inválida da API', 'recommended_action' => 'Registrar erro'],
+            28 => ['description' => 'DNS não encontrado', 'recommended_action' => 'Verificar internet'],
+            29 => ['description' => 'Gateway inacessível', 'recommended_action' => 'Verificar rede'],
+            30 => ['description' => 'Falha na sincronização', 'recommended_action' => 'Repetir sincronização'],
+            31 => ['description' => 'Reinicialização remota', 'recommended_action' => 'Evento informativo'],
+            32 => ['description' => 'Reinicialização por falta de energia', 'recommended_action' => 'Evento informativo'],
+            33 => ['description' => 'Modo Access Point ativo', 'recommended_action' => 'Evento informativo'],
+            34 => ['description' => 'Configuração restaurada', 'recommended_action' => 'Evento informativo'],
+            35 => ['description' => 'Sensor desconectado', 'recommended_action' => 'Verificar cabeamento'],
+            36 => ['description' => 'Erro de memória Flash', 'recommended_action' => 'Verificar hardware'],
+            37 => ['description' => 'Excesso de tentativas Wi-Fi', 'recommended_action' => 'Reiniciar interface'],
+            38 => ['description' => 'Timeout de inicialização', 'recommended_action' => 'Reiniciar dispositivo'],
+            39 => ['description' => 'Temperatura crítica', 'recommended_action' => 'Acionar alarme'],
+            40 => ['description' => 'Sistema em manutenção', 'recommended_action' => 'Evento informativo'],
+            41 => ['description' => 'Configuração sincronizada', 'recommended_action' => 'Aplicar parâmetros e seguir operação normal'],
+            42 => ['description' => 'Falha na sincronização de configuração', 'recommended_action' => 'Registrar erro e tentar novamente'],
+            43 => ['description' => 'Comando executado com sucesso', 'recommended_action' => 'Evento informativo'],
+            44 => ['description' => 'Falha ao executar comando', 'recommended_action' => 'Registrar erro e tentar novamente'],
+
+
+Retorno Esperado
+
+{
+    "codigo": 100,
+    "config": {
+        "status": "Ativo",
+        "cliente": "Cliente Teste",
+        "descricao": "Boiler",
+        "local_instalacao": "TESTE",
+        "sem_configuracao": 0,
+        "expected_interval": 60,
+        "min_temperature": 30,
+        "max_temperature": 80,
+        "relay_state": 0,
+        "horario_servidor": "2026-07-12 10:06:54",
+        "atualizacao": 1
+    },
+    "command": {
+        "comando_rele": 1
+    },
+    "update": {
+        "versao_atualizacao": "1.2",
+        "url_atualizacao": "http:\/\/www.mfmanutec.com.br\/storage\/uploads\/iot-firmware\/20260712_100635_f7f274fa734b.hex",
+        "hash_atualizacao": "52436b86f8387af430f59cb839c282fcce29c3870251621b05db2226db3c79e6"
+    }
+}
+
+Código resposta do servidor
+
+            100 => ['description' => 'Operação executada com sucesso', 'recommended_action' => 'Nenhuma'],
+            101 => ['description' => 'Erro interno do servidor', 'recommended_action' => 'Registrar e tentar novamente'],
+            102 => ['description' => 'Payload inválido recebido pelo servidor', 'recommended_action' => 'Validar JSON antes do envio'],
+            103 => ['description' => 'Dispositivo não cadastrado', 'recommended_action' => 'Realizar cadastro inicial com código 7'],
+            104 => ['description' => 'Assinatura inválida (resposta do servidor)', 'recommended_action' => 'Recalcular assinatura e reenviar'],
+            105 => ['description' => 'Dispositivo cadastrado', 'recommended_action' => 'Finalizar cadastro no portal.'],
+            106 => ['description' => 'Dispositivo aguardando cadastro', 'recommended_action' => 'Finalizar cadastro no portal.'],
+            107 => ['description' => 'Limite de requisições excedido', 'recommended_action' => 'Aguardar nova janela de envio'],
+
+Ao receber informações Atualizar 
+
+
+        "status":
+        "cliente": 
+        "descricao":
+        "local_instalacao": 
+        "sem_configuracao":
+        "expected_interval":
+        "min_temperature":
+        "max_temperature":
+        "relay_state": 0,
+        "horario_servidor":
+        "atualizacao":
+
+command
+    "command": {
+        "comando_rele": 1
+    },
+
+executar mudança de estado do rele enviar logo após com código 43
+
+
+Implementar atualização OTA
+    "update": {
+        "versao_atualizacao": "1.2",
+        "url_atualizacao": "http:\/\/www.mfmanutec.com.br\/storage\/uploads\/iot-firmware\/20260712_100635_f7f274fa734b.hex",
+        "hash_atualizacao": "52436b86f8387af430f59cb839c282fcce29c3870251621b05db2226db3c79e6"
+    }
+
+
+
+
+Modo 2
+
+enviar de acordo com expected_interval
+os dados de temperatura RSSI wifi tensão stado do rele uptime
+
+{
+    "modo": 2,
+    "chip_id": "",
+    "assinatura": "",
+    "data": {
+        "temperatura":,
+        "wifi":,
+        "tensao": ,
+        "relay_state": ,
+        "uptime": 
+    }
+}
+
+
+retorno esperado 
+
+{
+    "codigo": 100, segue o codigo de resposta do servidor
+}
+
+
+Criar tela display para exibir as informações
+Conexão erro
+Temperatura
+entre outras
+
+Caso erro:
+
+Repetir depois.
+
+
+
+Requisitos de qualidade
+Código orientado a objetos.
+Totalmente comentado.
+Modular.
+Sem uso de delay().
+Uso exclusivo de millis().
+Tratamento de exceções e falhas.
+Reconexão automática de Wi-Fi.
+Código compatível com Arduino IDE e PlatformIO.
+Baixo consumo de memória.
+Compatível com ESP8266 NodeMCU e ESP-12F.
+Resultado esperado
+
+Gerar um projeto completo, pronto para compilação, contendo:
+
+Todos os arquivos .cpp e .h.
+Sistema de configuração em modo AP.
+Armazenamento em LittleFS.
+Envio periódico de dados via HTTP POST em JSON
+Atualização OTA via navegador.
+Código organizado e seguindo boas práticas de desenvolvimento para sistemas IoT profissionais.
