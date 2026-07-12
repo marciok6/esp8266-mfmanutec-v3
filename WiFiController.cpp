@@ -14,7 +14,7 @@
 
 WiFiController::WiFiController(ConfigManager& cfg)
     : _cfg(cfg),
-      _state(WiFiState::IDLE),
+      _state(WiFiControllerState::IDLE),
       _lastCheck(0),
       _connectStart(0),
       _btnPressStart(0),
@@ -60,10 +60,10 @@ void WiFiController::handle() {
 
     switch (_state) {
 
-        case WiFiState::CONNECTING: {
+        case WiFiControllerState::CONNECTING: {
             // Verifica se conectou
             if (WiFi.status() == WL_CONNECTED) {
-                _state = WiFiState::CONNECTED;
+                _state = WiFiControllerState::CONNECTED;
                 Serial.printf("[WiFi] Conectado! IP: %s | RSSI: %d dBm\n",
                               WiFi.localIP().toString().c_str(),
                               WiFi.RSSI());
@@ -77,24 +77,24 @@ void WiFiController::handle() {
             break;
         }
 
-        case WiFiState::CONNECTED: {
+        case WiFiControllerState::CONNECTED: {
             // Monitora desconexão
             if (WiFi.status() != WL_CONNECTED) {
-                _state = WiFiState::DISCONNECTED;
+                _state = WiFiControllerState::DISCONNECTED;
                 _lastCheck = now;
                 Serial.println(F("[WiFi] Conexão perdida."));
             }
             break;
         }
 
-        case WiFiState::DISCONNECTED: {
+        case WiFiControllerState::DISCONNECTED: {
             // Tenta reconectar periodicamente
             if (now - _lastCheck >= INTERVAL_RECONNECT) {
                 _lastCheck = now;
                 Serial.println(F("[WiFi] Tentando reconectar..."));
                 WiFi.reconnect();
                 _connectStart = now;
-                _state = WiFiState::CONNECTING;
+                _state = WiFiControllerState::CONNECTING;
             }
             break;
         }
@@ -122,7 +122,7 @@ void WiFiController::startAP() {
     WiFi.softAPConfig(apIP, apGW, apMask);
     WiFi.softAP(ssid.c_str(), AP_PASSWORD);
 
-    _state = WiFiState::AP_MODE;
+    _state = WiFiControllerState::AP_MODE;
 
     Serial.printf("[WiFi] Modo AP iniciado – SSID: %s | IP: %s\n",
                   ssid.c_str(), AP_IP_ADDR);
@@ -136,7 +136,7 @@ void WiFiController::startSTA() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(_cfg.config.ssid.c_str(), _cfg.config.password.c_str());
 
-    _state = WiFiState::CONNECTING;
+    _state = WiFiControllerState::CONNECTING;
     _connectStart = millis();
 
     Serial.printf("[WiFi] Conectando à rede: %s\n", _cfg.config.ssid.c_str());
@@ -147,14 +147,14 @@ void WiFiController::startSTA() {
 // ============================================================
 
 bool WiFiController::isConnected() const {
-    return _state == WiFiState::CONNECTED;
+    return _state == WiFiControllerState::CONNECTED;
 }
 
 bool WiFiController::isApMode() const {
-    return _state == WiFiState::AP_MODE;
+    return _state == WiFiControllerState::AP_MODE;
 }
 
-WiFiState WiFiController::getState() const {
+WiFiControllerState WiFiController::getState() const {
     return _state;
 }
 
@@ -167,7 +167,7 @@ String WiFiController::getMacAddress() const {
 }
 
 String WiFiController::getLocalIP() const {
-    if (_state == WiFiState::AP_MODE) {
+    if (_state == WiFiControllerState::AP_MODE) {
         return WiFi.softAPIP().toString();
     }
     return WiFi.localIP().toString();

@@ -21,7 +21,7 @@
 // ============================================================
 // ESTADOS DO GERENCIADOR WIFI
 // ============================================================
-enum class WiFiState {
+enum class WiFiControllerState {
     IDLE,           ///< Estado inicial / indefinido
     AP_MODE,        ///< Modo Access Point ativo
     CONNECTING,     ///< Tentando conectar à rede STA
@@ -56,7 +56,7 @@ public:
     // -- Consultas de estado --
     bool       isConnected()   const;
     bool       isApMode()      const;
-    WiFiState  getState()      const;
+    WiFiControllerState getState() const;
     String     getSSID()       const;
     String     getMacAddress() const;
     String     getLocalIP()    const;
@@ -70,7 +70,7 @@ public:
 
 private:
     ConfigManager& _cfg;        ///< Referência ao gerenciador de configurações
-    WiFiState      _state;      ///< Estado atual
+    WiFiControllerState _state; ///< Estado atual
     unsigned long  _lastCheck;  ///< Último tick de verificação (ms)
     unsigned long  _connectStart; ///< Timestamp do início da tentativa STA
     unsigned long  _btnPressStart; ///< Timestamp do início de pressão do botão
