@@ -10,6 +10,7 @@
 
 // BearSSL SHA-256 (incluso no core do ESP8266 Arduino)
 #include <bearssl/bearssl_hash.h>
+#include <math.h>
 
 // ============================================================
 // CONSTRUTOR
@@ -133,17 +134,18 @@ bool ApiManager::_sendSync(float temperature, bool tempValid, bool relayState,
 
 bool ApiManager::_sendData(float temperature, bool tempValid, bool relayState,
                            int32_t rssi, float voltage, unsigned long uptimeSec) {
-    DynamicJsonDocument doc(384);
+    DynamicJsonDocument doc(512);
     doc["modo"]       = MODE_DATA;
     doc["chip_id"]    = _chipIdHex();
     doc["assinatura"] = _buildSignature();
 
     JsonObject data   = doc.createNestedObject("data");
-    data["temperatura"] = tempValid ? temperature : -127.0f;
+    data["temperatura"] = tempValid ? temperature : 0.0f;
     data["wifi"]        = rssi;
     data["tensao"]      = voltage;
     data["relay_state"] = relayState ? 1 : 0;
     data["uptime"]      = uptimeSec;
+    data["heap"]        = ESP.getFreeHeap();
 
     String payload;
     serializeJson(doc, payload);
@@ -154,12 +156,10 @@ bool ApiManager::_sendData(float temperature, bool tempValid, bool relayState,
         return false;
     }
 
-    // Para modo 2, apenas verifica código de resposta
-    DynamicJsonDocument resp(128);
-    if (deserializeJson(resp, response) == DeserializationError::Ok) {
-        _lastServerCode = resp["codigo"] | 0;
-        Serial.printf("[API] Resposta DATA – código servidor: %d\n", _lastServerCode);
-    }
+    // Reaproveita o parser completo para aplicar comandos/configurações,
+    // salvando em memória apenas quando houver diferença real.
+    _parseSync(response);
+    Serial.printf("[API] Resposta DATA – código servidor: %d\n", _lastServerCode);
 
     return true;
 }
@@ -233,8 +233,11 @@ void ApiManager::_parseSync(const String& response) {
     _lastServerCode = doc["codigo"] | 0;
     Serial.printf("[API] Código servidor: %d\n", _lastServerCode);
 
+    bool hasConfigChanges = false;
+
     // -- config: atualiza parâmetros do dispositivo --
     if (doc.containsKey("config")) {
+        DeviceConfig before = _cfg.config;
         JsonObject cfg = doc["config"];
 
         _cfg.config.status           = cfg["status"]           | _cfg.config.status.c_str();
@@ -262,11 +265,37 @@ void ApiManager::_parseSync(const String& response) {
                 _relayCommandState = newRelay;
             }
         }
-        _cfg.config.horarioServidor = cfg["horario_servidor"] | _cfg.config.horarioServidor.c_str();
+        // Atualiza o horário com referência local do ESP (uptime HH:MM:SS)
+        // e evita usar esse campo como gatilho de persistência.
+        unsigned long upSec = millis() / 1000UL;
+        unsigned long hh = upSec / 3600UL;
+        unsigned long mm = (upSec % 3600UL) / 60UL;
+        unsigned long ss = upSec % 60UL;
+        char espTime[16];
+        snprintf(espTime, sizeof(espTime), "%02lu:%02lu:%02lu", hh, mm, ss);
+        _cfg.config.horarioServidor = espTime;
         _cfg.config.atualizacao     = (cfg["atualizacao"].as<int>() != 0);
 
-        _cfg.save();  // Persiste as atualizações
-        Serial.println(F("[API] Configurações do servidor aplicadas e salvas."));
+        hasConfigChanges =
+            (_cfg.config.status != before.status) ||
+            (_cfg.config.cliente != before.cliente) ||
+            (_cfg.config.descricao != before.descricao) ||
+            (_cfg.config.localInstalacao != before.localInstalacao) ||
+            (_cfg.config.semConfiguracao != before.semConfiguracao) ||
+            (_cfg.config.expectedInterval != before.expectedInterval) ||
+            (fabsf(_cfg.config.minTemperature - before.minTemperature) > 0.0001f) ||
+            (fabsf(_cfg.config.maxTemperature - before.maxTemperature) > 0.0001f) ||
+            (_cfg.config.atualizacao != before.atualizacao);
+
+        if (hasConfigChanges) {
+            if (_cfg.save()) {
+                Serial.println(F("[API] Diferenças detectadas: configurações aplicadas e salvas."));
+            } else {
+                Serial.println(F("[API] ERRO ao salvar configurações atualizadas."));
+            }
+        } else {
+            Serial.println(F("[API] Configuração recebida sem mudanças; descarte de gravação."));
+        }
     }
 
     // -- command: comando de relé explícito --
@@ -291,10 +320,25 @@ void ApiManager::_parseSync(const String& response) {
         String hash    = upd["hash_atualizacao"]    | "";
 
         if (url.length() > 0 && hash.length() > 0) {
-            _cfg.config.otaVersao = versao;
-            _cfg.config.otaUrl    = url;
-            _cfg.config.otaHash   = hash;
-            _cfg.save();
+            bool otaChanged =
+                (_cfg.config.otaVersao != versao) ||
+                (_cfg.config.otaUrl != url) ||
+                (_cfg.config.otaHash != hash);
+
+            if (otaChanged) {
+                _cfg.config.otaVersao = versao;
+                _cfg.config.otaUrl    = url;
+                _cfg.config.otaHash   = hash;
+
+                if (_cfg.save()) {
+                    Serial.printf("[API] OTA alterada e salva – versão: %s\n", versao.c_str());
+                } else {
+                    Serial.println(F("[API] ERRO ao salvar dados de OTA."));
+                }
+            } else {
+                Serial.println(F("[API] OTA recebida sem mudanças; descarte de gravação."));
+            }
+
             _pendingOTA = true;
             Serial.printf("[API] OTA disponível – versão: %s\n", versao.c_str());
         }
