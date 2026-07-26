@@ -28,6 +28,7 @@ enum class DisplayScreen {
     TEMPERATURE,  ///< Temperatura atual e faixa
     RELAY_STATUS, ///< Estado do relé e uptime
     WIFI_INFO,    ///< Sinal WiFi e IP
+    CLIENT_INFO,  ///< Informações do cliente
     ERROR         ///< Tela de erro com código
 };
 
@@ -63,6 +64,7 @@ public:
     void setTemperature(float temp, bool valid);
     void setRelayState(bool state);
     void setWiFiInfo(int32_t rssi, const String& ip);
+    void setClientName(const String& clientName);
     void setUptime(unsigned long seconds);
     void setMinMaxTemp(float minT, float maxT);
 
@@ -78,6 +80,7 @@ private:
     bool         _relayState;
     int32_t      _rssi;
     String       _ip;
+    String       _clientName;
     unsigned long _uptime;
     float        _minTemp;
     float        _maxTemp;
@@ -91,6 +94,7 @@ private:
     void _drawTemperatureScreen();
     void _drawRelayScreen();
     void _drawWiFiScreen();
+    void _drawClientScreen();
     void _drawHeader(const char* title);
 };
 

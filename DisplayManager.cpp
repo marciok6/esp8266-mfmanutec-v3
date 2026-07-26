@@ -19,6 +19,7 @@ DisplayManager::DisplayManager()
       _relayState(false),
       _rssi(0),
       _ip(""),
+      _clientName(""),
       _uptime(0),
       _minTemp(DEFAULT_MIN_TEMP),
       _maxTemp(DEFAULT_MAX_TEMP),
@@ -56,42 +57,13 @@ bool DisplayManager::begin() {
 void DisplayManager::handle() {
     if (!_initialized) return;
 
-    // Cicla entre telas de operação a cada INTERVAL_DISPLAY ms
-    unsigned long now = millis();
-    if (now - _lastSwitch >= INTERVAL_DISPLAY) {
-        _lastSwitch = now;
-
-        // Alterna entre as três telas de informação
-        switch (_currentScreen) {
-            case DisplayScreen::TEMPERATURE:
-                _currentScreen = DisplayScreen::RELAY_STATUS;
-                break;
-            case DisplayScreen::RELAY_STATUS:
-                _currentScreen = DisplayScreen::WIFI_INFO;
-                break;
-            case DisplayScreen::WIFI_INFO:
-                _currentScreen = DisplayScreen::TEMPERATURE;
-                break;
-            default:
-                // Telas fixas (STARTUP, AP_MODE, etc.) não ciclan automaticamente
-                break;
-        }
+    // Mantém uma única tela de resumo após a conexão
+    if (_currentScreen == DisplayScreen::CONNECTING) {
+        _currentScreen = DisplayScreen::TEMPERATURE;
+        _lastSwitch = millis();
     }
 
-    // Desenha a tela atual
-    switch (_currentScreen) {
-        case DisplayScreen::TEMPERATURE:
-            _drawTemperatureScreen();
-            break;
-        case DisplayScreen::RELAY_STATUS:
-            _drawRelayScreen();
-            break;
-        case DisplayScreen::WIFI_INFO:
-            _drawWiFiScreen();
-            break;
-        default:
-            break;
-    }
+    _drawTemperatureScreen();
 }
 
 // ============================================================
@@ -109,7 +81,7 @@ void DisplayManager::showStartup() {
 
     _display.setTextSize(1);
     _display.setCursor(14, 34);
-    _display.print(F("Solu\xE7\xF5es IoT"));
+    _display.print(F("Monitoramento IoT"));
 
     _display.setCursor(22, 46);
     _display.print(F("FW v"));
@@ -120,8 +92,8 @@ void DisplayManager::showStartup() {
 
     _display.setCursor(10, 56);
     _display.print(F("Inicializando..."));
-
     _display.display();
+    delay(5000); 
 }
 
 void DisplayManager::showAPMode(const String& ssid, const String& ip) {
@@ -224,6 +196,10 @@ void DisplayManager::setWiFiInfo(int32_t rssi, const String& ip) {
     _ip   = ip;
 }
 
+void DisplayManager::setClientName(const String& clientName) {
+    _clientName = clientName;
+}
+
 void DisplayManager::setUptime(unsigned long seconds) {
     _uptime = seconds;
 }
@@ -251,33 +227,35 @@ void DisplayManager::_drawHeader(const char* title) {
 }
 
 void DisplayManager::_drawTemperatureScreen() {
-    _drawHeader("TEMPERATURA");
+    _drawHeader("RESUMO");
 
     _display.setTextSize(2);
-    _display.setCursor(10, 16);
+    _display.setCursor(6, 14);
     if (_tempValid) {
         char buf[8];
         dtostrf(_temperature, 5, 1, buf);
         _display.print(buf);
-        _display.print(F("\xF7C"));  // Símbolo de grau
+        _display.print(F("\xF7C"));
     } else {
-        _display.print(F(" ERRO"));
+        _display.print(F("ERRO"));
     }
 
     _display.setTextSize(1);
-    _display.setCursor(0, 40);
-    _display.print(F("Min:"));
-    _display.print(_minTemp, 0);
-    _display.print(F("\xF7C"));
+    _display.setCursor(0, 34);
+    _display.print(F("Rele: "));
+    _display.print(_relayState ? F("LIGADO") : F("DESL."));
 
-    _display.setCursor(70, 40);
-    _display.print(F("Max:"));
-    _display.print(_maxTemp, 0);
-    _display.print(F("\xF7C"));
+    _display.setCursor(0, 44);
+    String clientName = (_clientName.length() > 0) ? _clientName : String(F("Sem cliente"));
+    _display.print(F("Cli: "));
+    _display.print(clientName.substring(0, 18));
 
     _display.setCursor(0, 54);
-    _display.print(F("Rele: "));
-    _display.print(_relayState ? F("LIGADO ") : F("DESL.  "));
+    _display.print(F("IP: "));
+    _display.print(_ip.substring(0, 12));
+    _display.print(F(" | "));
+    _display.print(_rssi);
+    _display.print(F("dBm"));
 
     _display.display();
 }
@@ -346,6 +324,24 @@ void DisplayManager::_drawWiFiScreen() {
     } else {
         _display.print(F("ERRO"));
     }
+
+    _display.display();
+}
+
+void DisplayManager::_drawClientScreen() {
+    _drawHeader("CLIENTE");
+
+    _display.setTextSize(1);
+    _display.setCursor(0, 16);
+    _display.print(F("Cliente:"));
+
+    _display.setCursor(0, 28);
+    String clientName = _clientName.length() > 0 ? _clientName : F("Sem cliente");
+    _display.print(clientName.substring(0, 21));
+
+    _display.setCursor(0, 44);
+    _display.print(F("Status: "));
+    _display.print(_clientName.length() > 0 ? F("Cadastrado") : F("Pendente"));
 
     _display.display();
 }

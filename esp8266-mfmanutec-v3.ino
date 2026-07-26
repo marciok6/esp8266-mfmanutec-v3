@@ -198,6 +198,7 @@ void updateDisplay() {
     display.setTemperature(sensor.getTemperature(), sensor.isValid());
     display.setRelayState(relay.getState());
     display.setWiFiInfo(wifiCtrl.getRSSI(), wifiCtrl.getLocalIP());
+    display.setClientName(configMgr.config.cliente);
     display.setUptime(uptimeSeconds());
     display.setMinMaxTemp(configMgr.config.minTemperature,
                           configMgr.config.maxTemperature);
@@ -211,6 +212,7 @@ void updateDisplay() {
     // Tela de conectando (STA ainda não conectado)
     if (!wifiCtrl.isConnected()) {
         display.showConnecting(configMgr.config.ssid);
+        delay(2000); 
         return;
     }
 

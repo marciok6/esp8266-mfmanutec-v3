@@ -31,6 +31,8 @@ void WiFiController::begin() {
     pinMode(PIN_RESET_BTN, INPUT_PULLUP);
 
     WiFi.persistent(false);  // Evita gravação automática no flash
+    WiFi.setAutoConnect(true);
+    WiFi.setAutoReconnect(true);
     WiFi.mode(WIFI_OFF);
 
     // Decide o modo inicial
@@ -92,9 +94,7 @@ void WiFiController::handle() {
             if (now - _lastCheck >= INTERVAL_RECONNECT) {
                 _lastCheck = now;
                 Serial.println(F("[WiFi] Tentando reconectar..."));
-                WiFi.reconnect();
-                _connectStart = now;
-                _state = WiFiControllerState::CONNECTING;
+                startSTA();
             }
             break;
         }
@@ -134,6 +134,7 @@ void WiFiController::startAP() {
 
 void WiFiController::startSTA() {
     WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false);
     WiFi.begin(_cfg.config.ssid.c_str(), _cfg.config.password.c_str());
 
     _state = WiFiControllerState::CONNECTING;

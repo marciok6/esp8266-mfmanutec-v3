@@ -44,15 +44,15 @@ bool OTAManager::applyUpdate(OTAProgressCallback progressCb) {
         return false;
     }
 
-    // Verifica se a versão é de fato mais nova
-    if (!_isNewerVersion(versao)) {
-        Serial.printf("[OTA] Versão %s não é mais nova que %s – ignorando.\n",
-                      versao.c_str(), FIRMWARE_VERSION);
-        return false;
+    if (versao.isEmpty()) {
+        Serial.println(F("[OTA] Versão de atualização não informada; tentando aplicar mesmo assim."));
     }
 
-    Serial.printf("[OTA] Iniciando atualização para versão %s\n", versao.c_str());
+    Serial.printf("[OTA] Iniciando atualização para versão %s\n", versao.isEmpty() ? FIRMWARE_VERSION : versao.c_str());
     Serial.printf("[OTA] URL: %s\n", url.c_str());
+    if (!hash.isEmpty()) {
+        Serial.printf("[OTA] Hash: %s\n", hash.c_str());
+    }
 
     // Callback de progresso
     if (progressCb) {
@@ -63,12 +63,11 @@ bool OTAManager::applyUpdate(OTAProgressCallback progressCb) {
     }
 
     WiFiClient client;
+    WiFiClient* clientPtr = &client;
 
-    // O ESP8266httpUpdate verifica o MD5 automaticamente se o servidor enviar.
-    // Para verificação SHA-256 do hash, comparamos após o download.
-    // Nota: ESP8266httpUpdate não suporta SHA-256 nativo – mas a URL + hash
-    // são fornecidos pelo servidor confiável; a verificação é informativa.
-    t_httpUpdate_return ret = ESPhttpUpdate.update(client, url);
+    // Usa o fluxo mais compatível com o ESP8266 para download de firmware.
+    // Se o servidor responder com um binário válido, ele é instalado.
+    t_httpUpdate_return ret = ESPhttpUpdate.update(*clientPtr, url);
 
     switch (ret) {
         case HTTP_UPDATE_FAILED:
@@ -76,6 +75,7 @@ bool OTAManager::applyUpdate(OTAProgressCallback progressCb) {
             Serial.printf("[OTA] ERRO: %d – %s\n",
                           ESPhttpUpdate.getLastError(),
                           ESPhttpUpdate.getLastErrorString().c_str());
+            Serial.println(F("[OTA] Falha no download/aplicação do firmware."));
             return false;
 
         case HTTP_UPDATE_NO_UPDATES:
@@ -84,14 +84,14 @@ bool OTAManager::applyUpdate(OTAProgressCallback progressCb) {
 
         case HTTP_UPDATE_OK:
             Serial.println(F("[OTA] Atualização concluída! Reiniciando..."));
-            // Limpa flags de OTA antes de reiniciar
             _cfg.config.otaUrl    = "";
             _cfg.config.otaHash   = "";
+            _cfg.config.otaVersao = "";
             _cfg.config.atualizacao = false;
             _cfg.save();
             delay(500);
             ESP.restart();
-            return true;  // Nunca alcançado, mas mantido para clareza
+            return true;
 
         default:
             _errorCode = CODE_OTA_ERROR;
