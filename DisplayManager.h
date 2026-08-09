@@ -57,6 +57,8 @@ public:
     void showStartup();
     void showAPMode(const String& ssid, const String& ip);
     void showConnecting(const String& ssid);
+    void showConnectingAttempt(const String& ssid, unsigned long attempt, unsigned long maxAttempts);
+    void showNoConfig(const String& ssid, unsigned long remainingSeconds);
     void showError(int code, const String& msg);
     void showOTA(int progress);
 
@@ -65,6 +67,7 @@ public:
     void setRelayState(bool state);
     void setWiFiInfo(int32_t rssi, const String& ip);
     void setClientName(const String& clientName);
+    void setLocationName(const String& locationName);
     void setUptime(unsigned long seconds);
     void setMinMaxTemp(float minT, float maxT);
 
@@ -81,6 +84,7 @@ private:
     int32_t      _rssi;
     String       _ip;
     String       _clientName;
+    String       _locationName;
     unsigned long _uptime;
     float        _minTemp;
     float        _maxTemp;
@@ -96,6 +100,7 @@ private:
     void _drawWiFiScreen();
     void _drawClientScreen();
     void _drawHeader(const char* title);
+    void _drawSignalBars(int16_t x, int16_t y);
 };
 
 #endif // DISPLAY_MANAGER_H

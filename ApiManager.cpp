@@ -319,6 +319,12 @@ void ApiManager::_parseSync(const String& response) {
         String url     = upd["url_atualizacao"]     | "";
         String hash    = upd["hash_atualizacao"]    | "";
 
+        // Remove espaços em branco no início/fim do link e do hash para evitar
+        // URL inválida com caractere inicial espaco, que causa HTTP -104.
+        url.trim();
+        hash.trim();
+        versao.trim();
+
         if (url.length() > 0 && hash.length() > 0) {
             bool otaChanged =
                 (_cfg.config.otaVersao != versao) ||

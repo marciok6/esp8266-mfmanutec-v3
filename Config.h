@@ -15,7 +15,7 @@
 // ============================================================
 // VERSÃO DO FIRMWARE
 // ============================================================
-#define FIRMWARE_VERSION        "1.1"
+#define FIRMWARE_VERSION        "1.7"
 
 // ============================================================
 //  CONFIGURAÇÃO DE PINOS
@@ -57,6 +57,8 @@
 #define INTERVAL_LED_BLINK        500UL   // Pisca do LED de status (500 ms)
 #define RESET_HOLD_TIME         10000UL   // Tempo de pressão do botão reset (10 s)
 #define WIFI_CONNECT_TIMEOUT    20000UL   // Timeout de conexão WiFi (20 s)
+#define STA_MAX_ATTEMPTS           3UL   // Tentativas antes de ativar AP de recuperação
+#define AP_RECOVERY_DURATION    60000UL   // 1 minuto em AP antes de reiniciar o ESP
 #define HTTP_TIMEOUT            10000     // Timeout HTTP em ms
 
 // ============================================================

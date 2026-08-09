@@ -69,9 +69,13 @@ WebServerManager  webServer(configMgr);
 // ============================================================
 // VARIÁVEIS GLOBAIS
 // ============================================================
-unsigned long _startTime     = 0;   // Timestamp do boot (ms)
-unsigned long _lastLedBlink  = 0;   // Último toggle do LED
-bool          _ledState      = false;
+unsigned long _startTime         = 0;   // Timestamp do boot (ms)
+unsigned long _lastLedBlink      = 0;   // Último toggle do LED
+bool          _ledState          = false;
+bool          _otaInProgress     = false;
+bool          _otaFailureLocked  = false;
+unsigned long _otaFailureUntil    = 0;
+unsigned long _noConfigStart     = 0;
 
 // ============================================================
 // PROTÓTIPOS
@@ -94,6 +98,7 @@ void setup() {
     Serial.println(F("========================================\n"));
 
     _startTime = millis();
+    _noConfigStart = 0;
 
     // LED de status
     pinMode(PIN_LED_STATUS, OUTPUT);
@@ -129,7 +134,7 @@ void setup() {
         display.showAPMode(WiFi.softAPSSID(), String(AP_IP_ADDR));
     } else {
         // Modo STA: exibe "Conectando..." enquanto tenta
-        display.showConnecting(configMgr.config.ssid);
+        display.showConnectingAttempt(configMgr.config.ssid, 1, STA_MAX_ATTEMPTS);
     }
 
     // -- OTA --
@@ -156,9 +161,34 @@ void loop() {
 
     // -- Servidor web (modo AP) --
     if (wifiCtrl.isApMode()) {
+        if (!webServer.isRunning()) {
+            Serial.println(F("[Main] Iniciando servidor web do modo AP."));
+            webServer.begin();
+        }
+
         webServer.handle();
+
+        if (wifiCtrl.isRecoveryAp()) {
+            unsigned long elapsed = millis() - wifiCtrl.getApModeStart();
+            unsigned long remaining = (elapsed < AP_RECOVERY_DURATION)
+                ? (AP_RECOVERY_DURATION - elapsed) / 1000UL
+                : 0UL;
+
+            if (remaining == 0) {
+                Serial.println(F("[Main] AP de recuperação expirado – reiniciando ESP."));
+                delay(500);
+                ESP.restart();
+            }
+
+            display.showNoConfig(WiFi.softAPSSID(), remaining);
+        }
+
         // Em modo AP não precisa de sensor / API
         return;
+    }
+
+    if (webServer.isRunning()) {
+        webServer.stop();
     }
 
     // -- Sensor de temperatura --
@@ -166,6 +196,23 @@ void loop() {
 
     // -- Display (telas rotativas) --
     updateDisplay();
+
+    if (wifiCtrl.isApMode() && _noConfigStart != 0) {
+        unsigned long elapsed = millis() - _noConfigStart;
+        unsigned long remaining = (AP_RECOVERY_DURATION > elapsed)
+            ? (AP_RECOVERY_DURATION - elapsed) / 1000UL
+            : 0UL;
+
+        if (remaining == 0) {
+            Serial.println(F("[Main] Timer AP de recuperação esgotado – reiniciando ESP."));
+            delay(500);
+            ESP.restart();
+        }
+
+        display.showNoConfig(WiFi.softAPSSID(), remaining);
+        webServer.handle();
+        return;
+    }
 
     // -- API (somente quando conectado) --
     if (wifiCtrl.isConnected()) {
@@ -194,11 +241,23 @@ void loop() {
  * @brief Atualiza os dados do display e decide qual tela mostrar.
  */
 void updateDisplay() {
+    if (_otaInProgress) {
+        return;
+    }
+
+    if (_otaFailureLocked) {
+        if (millis() < _otaFailureUntil) {
+            return;
+        }
+        _otaFailureLocked = false;
+    }
+
     // Atualiza dados para o display
     display.setTemperature(sensor.getTemperature(), sensor.isValid());
     display.setRelayState(relay.getState());
     display.setWiFiInfo(wifiCtrl.getRSSI(), wifiCtrl.getLocalIP());
     display.setClientName(configMgr.config.cliente);
+    display.setLocationName(configMgr.config.localInstalacao);
     display.setUptime(uptimeSeconds());
     display.setMinMaxTemp(configMgr.config.minTemperature,
                           configMgr.config.maxTemperature);
@@ -211,8 +270,9 @@ void updateDisplay() {
 
     // Tela de conectando (STA ainda não conectado)
     if (!wifiCtrl.isConnected()) {
-        display.showConnecting(configMgr.config.ssid);
-        delay(2000); 
+        display.showConnectingAttempt(configMgr.config.ssid,
+                                     wifiCtrl.getStaAttempts(),
+                                     STA_MAX_ATTEMPTS);
         return;
     }
 
@@ -248,6 +308,8 @@ void handleRelay() {
 void handleOTA() {
     if (!api.hasPendingOTA()) return;
 
+    _otaInProgress = true;
+    _otaFailureLocked = false;
     Serial.println(F("[Main] Iniciando processo OTA..."));
     display.showOTA(0);
 
@@ -256,10 +318,15 @@ void handleOTA() {
         yield();  // Evita watchdog durante download
     });
 
+    _otaInProgress = false;
+
     if (!ok) {
+        _otaFailureLocked = true;
+        _otaFailureUntil = millis() + 30000UL;
         Serial.printf("[Main] OTA falhou – código: %d\n", ota.getErrorCode());
         display.showError(ota.getErrorCode(), F("Falha na atualizacao"));
         api.clearFlags();
+        return;
     }
     // Se ok == true, o dispositivo foi reiniciado dentro de applyUpdate()
 }

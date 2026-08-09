@@ -26,6 +26,11 @@ void OTAManager::begin() {
     // Configura a biblioteca de update HTTP
     ESPhttpUpdate.rebootOnUpdate(false);   // Reiniciar manualmente após update
     ESPhttpUpdate.setLedPin(PIN_LED_STATUS, LOW);  // LED aceso durante update
+
+    // Compatível com versões do ESP8266HTTPUpdate em que a constante
+    // FOLLOW_REDIRECTS não existe. O tipo da API é followRedirects_t.
+    ESPhttpUpdate.setFollowRedirects(static_cast<followRedirects_t>(1));
+
     Serial.println(F("[OTA] OTAManager inicializado."));
 }
 
@@ -38,8 +43,21 @@ bool OTAManager::applyUpdate(OTAProgressCallback progressCb) {
     String hash   = _cfg.config.otaHash;
     String versao = _cfg.config.otaVersao;
 
+    url.trim();
+    hash.trim();
+    versao.trim();
+
     if (url.isEmpty()) {
         Serial.println(F("[OTA] URL de atualização não disponível."));
+        _errorCode = CODE_OTA_ERROR;
+        return false;
+    }
+
+    // A biblioteca ESPhttpUpdate falha com -104 (Wrong HTTP Code) quando a URL
+    // responde com redirecionamento, HTML, JSON ou outra página em vez de um
+    // binário firmware válido em HTTP 200/206.
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        Serial.printf("[OTA] URL inválida para atualização: %s\n", url.c_str());
         _errorCode = CODE_OTA_ERROR;
         return false;
     }
@@ -75,6 +93,12 @@ bool OTAManager::applyUpdate(OTAProgressCallback progressCb) {
             Serial.printf("[OTA] ERRO: %d – %s\n",
                           ESPhttpUpdate.getLastError(),
                           ESPhttpUpdate.getLastErrorString().c_str());
+
+            if (ESPhttpUpdate.getLastError() == -104) {
+                Serial.println(F("[OTA] Causa provável: resposta HTTP diferente de 200/206 ou redirecionamento sem binário válido."));
+                Serial.println(F("[OTA] Verifique se a URL aponta para o firmware binário e não para página HTML/JSON."));
+            }
+
             Serial.println(F("[OTA] Falha no download/aplicação do firmware."));
             return false;
 

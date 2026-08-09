@@ -17,8 +17,11 @@ WiFiController::WiFiController(ConfigManager& cfg)
       _state(WiFiControllerState::IDLE),
       _lastCheck(0),
       _connectStart(0),
+      _apModeStart(0),
       _btnPressStart(0),
-      _btnPressed(false)
+      _staAttempts(0),
+      _btnPressed(false),
+      _recoveryAp(false)
 {
 }
 
@@ -31,9 +34,11 @@ void WiFiController::begin() {
     pinMode(PIN_RESET_BTN, INPUT_PULLUP);
 
     WiFi.persistent(false);  // Evita gravação automática no flash
-    WiFi.setAutoConnect(true);
+    WiFi.setAutoConnect(false);
     WiFi.setAutoReconnect(true);
     WiFi.mode(WIFI_OFF);
+    delay(100);
+    _staAttempts = 0;
 
     // Decide o modo inicial
     if (!_cfg.hasWifiConfig()) {
@@ -60,21 +65,42 @@ void WiFiController::handle() {
         return;
     }
 
+    if (_state == WiFiControllerState::AP_MODE) {
+        if (_recoveryAp && (now - _apModeStart) >= AP_RECOVERY_DURATION) {
+            Serial.println(F("[WiFi] AP de recuperação expirado – reiniciando ESP."));
+            delay(500);
+            ESP.restart();
+        }
+        return;
+    }
+
     switch (_state) {
 
         case WiFiControllerState::CONNECTING: {
             // Verifica se conectou
             if (WiFi.status() == WL_CONNECTED) {
+                _staAttempts = 0;
                 _state = WiFiControllerState::CONNECTED;
                 Serial.printf("[WiFi] Conectado! IP: %s | RSSI: %d dBm\n",
                               WiFi.localIP().toString().c_str(),
                               WiFi.RSSI());
                 return;
             }
-            // Verifica timeout
+
+            // Verifica timeout de tentativa de conexão
             if (now - _connectStart >= WIFI_CONNECT_TIMEOUT) {
-                Serial.println(F("[WiFi] Timeout de conexão – iniciando modo AP."));
-                startAP();
+                Serial.printf("[WiFi] Tentativa %lu/%lu falhou – verificando recuperação.\n",
+                              _staAttempts, STA_MAX_ATTEMPTS);
+
+                if (_staAttempts >= STA_MAX_ATTEMPTS) {
+                    Serial.println(F("[WiFi] 3 tentativas falharam – ativando AP por 5 minutos."));
+                    _recoveryAp = true;
+                    startAP();
+                    return;
+                }
+
+                Serial.println(F("[WiFi] Tentando STA novamente..."));
+                startSTA();
             }
             break;
         }
@@ -90,7 +116,6 @@ void WiFiController::handle() {
         }
 
         case WiFiControllerState::DISCONNECTED: {
-            // Tenta reconectar periodicamente
             if (now - _lastCheck >= INTERVAL_RECONNECT) {
                 _lastCheck = now;
                 Serial.println(F("[WiFi] Tentando reconectar..."));
@@ -109,9 +134,18 @@ void WiFiController::handle() {
 // ============================================================
 
 void WiFiController::startAP() {
+    WiFi.setAutoConnect(false);
+    WiFi.softAPdisconnect(true);
     WiFi.disconnect(true);
     delay(100);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
     WiFi.mode(WIFI_AP);
+    delay(100);
+    _apModeStart = millis();
+    if (!_recoveryAp) {
+        _staAttempts = 0;
+    }
 
     String ssid = _buildApSSID();
 
@@ -133,14 +167,23 @@ void WiFiController::startAP() {
 // ============================================================
 
 void WiFiController::startSTA() {
+    _staAttempts = (_staAttempts + 1UL);
+    _recoveryAp = false;
+    WiFi.setAutoConnect(true);
+    WiFi.softAPdisconnect(true);
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect(false);
+    delay(100);
     WiFi.begin(_cfg.config.ssid.c_str(), _cfg.config.password.c_str());
 
     _state = WiFiControllerState::CONNECTING;
     _connectStart = millis();
 
-    Serial.printf("[WiFi] Conectando à rede: %s\n", _cfg.config.ssid.c_str());
+    Serial.printf("[WiFi] Conectando à rede: %s (tentativa %lu/%lu)\n",
+                  _cfg.config.ssid.c_str(), _staAttempts, STA_MAX_ATTEMPTS);
 }
 
 // ============================================================
@@ -155,8 +198,20 @@ bool WiFiController::isApMode() const {
     return _state == WiFiControllerState::AP_MODE;
 }
 
+bool WiFiController::isRecoveryAp() const {
+    return _recoveryAp;
+}
+
 WiFiControllerState WiFiController::getState() const {
     return _state;
+}
+
+unsigned long WiFiController::getStaAttempts() const {
+    return _staAttempts;
+}
+
+unsigned long WiFiController::getApModeStart() const {
+    return _apModeStart;
 }
 
 String WiFiController::getSSID() const {

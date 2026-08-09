@@ -56,7 +56,10 @@ public:
     // -- Consultas de estado --
     bool       isConnected()   const;
     bool       isApMode()      const;
+    bool       isRecoveryAp()  const;
     WiFiControllerState getState() const;
+    unsigned long getStaAttempts() const;
+    unsigned long getApModeStart() const;
     String     getSSID()       const;
     String     getMacAddress() const;
     String     getLocalIP()    const;
@@ -71,10 +74,13 @@ public:
 private:
     ConfigManager& _cfg;        ///< Referência ao gerenciador de configurações
     WiFiControllerState _state; ///< Estado atual
-    unsigned long  _lastCheck;  ///< Último tick de verificação (ms)
-    unsigned long  _connectStart; ///< Timestamp do início da tentativa STA
-    unsigned long  _btnPressStart; ///< Timestamp do início de pressão do botão
-    bool           _btnPressed; ///< Botão atualmente pressionado
+    unsigned long  _lastCheck;      ///< Último tick de verificação (ms)
+    unsigned long  _connectStart;    ///< Timestamp do início da tentativa STA
+    unsigned long  _apModeStart;     ///< Timestamp em que o AP foi iniciado
+    unsigned long  _btnPressStart;   ///< Timestamp do início de pressão do botão
+    unsigned long  _staAttempts;     ///< Quantidade de tentativas STA consecutivas
+    bool           _btnPressed;      ///< Botão atualmente pressionado
+    bool           _recoveryAp;      ///< AP de recuperação após falha em STA
 
     /** Verifica o botão de reset e retorna true se deve entrar em modo AP. */
     bool _checkResetButton();

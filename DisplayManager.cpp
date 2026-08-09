@@ -20,6 +20,7 @@ DisplayManager::DisplayManager()
       _rssi(0),
       _ip(""),
       _clientName(""),
+      _locationName(""),
       _uptime(0),
       _minTemp(DEFAULT_MIN_TEMP),
       _maxTemp(DEFAULT_MAX_TEMP),
@@ -76,22 +77,22 @@ void DisplayManager::showStartup() {
 
     // Título centralizado
     _display.setTextSize(2);
-    _display.setCursor(4, 10);
+    _display.setCursor(12, 20);
     _display.print(F("MFMANUTEC"));
 
     _display.setTextSize(1);
-    _display.setCursor(14, 34);
+    _display.setCursor(12, 44);
     _display.print(F("Monitoramento IoT"));
 
-    _display.setCursor(22, 46);
-    _display.print(F("FW v"));
-    _display.print(FIRMWARE_VERSION);
+    //_display.setCursor(22, 46);
+    //_display.print(F("FW v"));
+    //_display.print(FIRMWARE_VERSION);
 
     // Linha decorativa
-    _display.drawFastHLine(0, 28, OLED_WIDTH, SSD1306_WHITE);
+    _display.drawFastHLine(0, 38, OLED_WIDTH, SSD1306_WHITE);
 
-    _display.setCursor(10, 56);
-    _display.print(F("Inicializando..."));
+    //_display.setCursor(0, 56);
+    //_display.print(F("Inicializando..."));
     _display.display();
     delay(5000); 
 }
@@ -134,6 +135,49 @@ void DisplayManager::showConnecting(const String& ssid) {
     _currentScreen = DisplayScreen::CONNECTING;
 }
 
+void DisplayManager::showConnectingAttempt(const String& ssid, unsigned long attempt, unsigned long maxAttempts) {
+    if (!_initialized) return;
+    _drawHeader("CONECTANDO");
+
+    _display.setTextSize(1);
+    _display.setCursor(0, 18);
+    _display.print(F("Rede: "));
+    _display.print(ssid.substring(0, 12));
+
+    _display.setCursor(0, 30);
+    _display.print(F("Tentativa: "));
+    _display.print(attempt);
+    _display.print(F("/"));
+    _display.print(maxAttempts);
+
+    _display.setCursor(0, 42);
+    _display.print(F("Aguarde..."));
+
+    _display.display();
+    _currentScreen = DisplayScreen::CONNECTING;
+}
+
+void DisplayManager::showNoConfig(const String& ssid, unsigned long remainingSeconds) {
+    if (!_initialized) return;
+    _drawHeader("SEM CONFIG");
+
+    _display.setTextSize(1);
+    _display.setCursor(0, 18);
+    _display.print(F("AP: "));
+    _display.print(ssid.substring(0, 15));
+
+    _display.setCursor(0, 30);
+    _display.print(F("Reiniciando em: "));
+    _display.print(remainingSeconds / 60UL);
+    _display.print(F("m"));
+
+    _display.setCursor(0, 42);
+    _display.print(F("Acesse 192.168.4.1"));
+
+    _display.display();
+    _currentScreen = DisplayScreen::AP_MODE;
+}
+
 void DisplayManager::showError(int code, const String& msg) {
     if (!_initialized) return;
     _drawHeader("ERRO");
@@ -160,7 +204,7 @@ void DisplayManager::showError(int code, const String& msg) {
 
 void DisplayManager::showOTA(int progress) {
     if (!_initialized) return;
-    _drawHeader("ATUALIZANDO OTA");
+    _drawHeader("ATUALIZANDO...");
 
     _display.setTextSize(1);
     _display.setCursor(20, 24);
@@ -173,7 +217,7 @@ void DisplayManager::showOTA(int progress) {
     _display.fillRect(2, 38, barW, 12, SSD1306_WHITE);
 
     _display.setCursor(0, 54);
-    _display.print(F("N\xE3o desligue!"));
+    _display.print(F("Nao desligue!"));
 
     _display.display();
 }
@@ -198,6 +242,10 @@ void DisplayManager::setWiFiInfo(int32_t rssi, const String& ip) {
 
 void DisplayManager::setClientName(const String& clientName) {
     _clientName = clientName;
+}
+
+void DisplayManager::setLocationName(const String& locationName) {
+    _locationName = locationName;
 }
 
 void DisplayManager::setUptime(unsigned long seconds) {
@@ -227,35 +275,53 @@ void DisplayManager::_drawHeader(const char* title) {
 }
 
 void DisplayManager::_drawTemperatureScreen() {
-    _drawHeader("RESUMO");
+    _display.clearDisplay();
 
+    _display.setTextSize(1);
+    _display.setCursor(0, 0);
+    _display.print(_clientName.length() > 0 ? _clientName.substring(0, 12) : F("Local"));
+
+    _drawSignalBars(OLED_WIDTH - 20, 1);
+    _display.drawFastHLine(0, 10, OLED_WIDTH, SSD1306_WHITE);
+
+    _display.setTextSize(1);
+    _display.setCursor(0, 14);
+    _display.print(_locationName.length() > 0 ? _locationName.substring(0, 12) : F("Local"));
+
+
+    //_display.drawRect(2, 20, 66, 18, SSD1306_WHITE);
     _display.setTextSize(2);
-    _display.setCursor(6, 14);
+    _display.setCursor(0, 27);
     if (_tempValid) {
         char buf[8];
         dtostrf(_temperature, 5, 1, buf);
         _display.print(buf);
-        _display.print(F("\xF7C"));
+        //_display.write(0xF8);
+        //_display.print(F("C"));
     } else {
         _display.print(F("ERRO"));
     }
 
     _display.setTextSize(1);
-    _display.setCursor(0, 34);
-    _display.print(F("Rele: "));
-    _display.print(_relayState ? F("LIGADO") : F("DESL."));
+    _display.setCursor(87, 14);
+    _display.print(F("Saida"));
 
-    _display.setCursor(0, 44);
-    String clientName = (_clientName.length() > 0) ? _clientName : String(F("Sem cliente"));
-    _display.print(F("Cli: "));
-    _display.print(clientName.substring(0, 18));
+    _display.drawRect(80, 25, 40, 16, SSD1306_WHITE);
+    _display.setTextSize(1);
+    _display.setCursor(92, 30);
+    _display.print(_relayState ? F("ON") : F("OFF"));
 
-    _display.setCursor(0, 54);
-    _display.print(F("IP: "));
-    _display.print(_ip.substring(0, 12));
-    _display.print(F(" | "));
-    _display.print(_rssi);
-    _display.print(F("dBm"));
+     _display.drawFastHLine(0, 53, OLED_WIDTH, SSD1306_WHITE);
+
+    _display.setCursor(0, 57);
+    _display.print(F("ID:"));
+    char chipId[12];
+    snprintf(chipId, sizeof(chipId), "%06X", static_cast<unsigned long>(ESP.getChipId()));
+    _display.print(chipId);
+
+    _display.setCursor(95, 57);    
+    _display.print(F("V:"));
+    _display.print(FIRMWARE_VERSION);
 
     _display.display();
 }
@@ -320,7 +386,8 @@ void DisplayManager::_drawWiFiScreen() {
     _display.print(F("Temp: "));
     if (_tempValid) {
         _display.print(_temperature, 1);
-        _display.print(F("\xF7C"));
+        _display.write(0xF8);
+        _display.print(F("C"));
     } else {
         _display.print(F("ERRO"));
     }
@@ -344,4 +411,23 @@ void DisplayManager::_drawClientScreen() {
     _display.print(_clientName.length() > 0 ? F("Cadastrado") : F("Pendente"));
 
     _display.display();
+}
+
+void DisplayManager::_drawSignalBars(int16_t x, int16_t y) {
+    int bars = 0;
+    if (_rssi >= -55) bars = 4;
+    else if (_rssi >= -65) bars = 3;
+    else if (_rssi >= -75) bars = 2;
+    else if (_rssi >= -85) bars = 1;
+
+    for (int i = 0; i < 4; i++) {
+        int barH = 3 + i * 2;
+        int barX = x + i * 4;
+        int barY = y + 6 - barH;
+        if (i < bars) {
+            _display.fillRect(barX, barY, 3, barH, SSD1306_WHITE);
+        } else {
+            _display.drawRect(barX, barY, 3, barH, SSD1306_WHITE);
+        }
+    }
 }
